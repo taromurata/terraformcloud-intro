@@ -1,0 +1,37 @@
+# AWS Resource には、指定されたタグをつける必要があります。
+
+# 参考: https://github.com/hashicorp/terraform-guides
+# Sentinel Policyを使って、指定したAWSリソースすべてに必須のタグが付与
+# されていることを確認します。
+
+# common-functions/tfplan-functions/tfplan-functions.sentinelをインポートし
+# "plan"というエイリアスをつけます。
+import "tfplan-functions" as plan
+
+# aws-functions/aws-functions.sentinelをインポートし、"aws"というエイリアスを
+# つけます。
+import "aws-functions" as aws
+
+# 必須のタグを強制するリソースのタイプを指定します。
+# ここでは、aws_instanceリソースに対してのみ、ポリシーを適用します。
+param resource_types default [
+  "aws_instance",
+]
+
+# 必須タグの一覧。
+param mandatory_tags default ["Name", "ttl", "owner", "type"]
+
+# planに含まれる、指定されたリソースタイプのAWSインスタンスを取得します
+allAWSResourcesWithStandardTags =
+                          aws.find_resources_with_standard_tags(resource_types)
+
+# ポリシー違反のあるAWS Resourceをフィルタします。
+# 最後の引数をtrueにすると警告メッセージが表示されます。
+violatingAWSResources =
+        plan.filter_attribute_not_contains_list(allAWSResourcesWithStandardTags,
+                        "tags", mandatory_tags, true)
+
+# Main rule
+main = rule {
+  length(violatingAWSResources["messages"]) is 0
+}
